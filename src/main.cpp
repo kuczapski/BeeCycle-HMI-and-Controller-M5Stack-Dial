@@ -18,8 +18,48 @@ void pwmTask(void* pv) {
 }
 
 // ─── Encoder state ────────────────────────────────────────────────────────
-static long encoderAccum = 0;
+static portMUX_TYPE encoderMux = portMUX_INITIALIZER_UNLOCKED;
+static volatile long pendingEncoderSteps = 0;
+static long encoderPrevRaw = 0;
+static long encoderRemainder = 0;
 static constexpr long ENCODER_COUNTS_PER_STEP = 4;
+static int  encoderDominantDir = 0;
+static unsigned long encoderLastMoveMs = 0;
+static constexpr unsigned long ENCODER_DIR_HOLD_MS = 80;
+
+void encoderTask(void* pv) {
+    for (;;) {
+        long rawPosition = M5Dial.Encoder.read();
+        long rawDelta = rawPosition - encoderPrevRaw;
+        encoderPrevRaw = rawPosition;
+
+        unsigned long nowMs = millis();
+        int rawDir = (rawDelta > 0) ? 1 : ((rawDelta < 0) ? -1 : 0);
+        if (rawDir != 0) {
+            if (encoderDominantDir == 0 || rawDir == encoderDominantDir || (nowMs - encoderLastMoveMs) > ENCODER_DIR_HOLD_MS) {
+                if (rawDir != encoderDominantDir) {
+                    encoderRemainder = 0;
+                    encoderDominantDir = rawDir;
+                }
+                encoderRemainder += rawDelta;
+                encoderLastMoveMs = nowMs;
+
+                if (labs(encoderRemainder) >= ENCODER_COUNTS_PER_STEP) {
+                    long steps = encoderRemainder / ENCODER_COUNTS_PER_STEP;
+                    encoderRemainder -= steps * ENCODER_COUNTS_PER_STEP;
+
+                    portENTER_CRITICAL(&encoderMux);
+                    pendingEncoderSteps += steps;
+                    portEXIT_CRITICAL(&encoderMux);
+                }
+            }
+        } else if ((nowMs - encoderLastMoveMs) > ENCODER_DIR_HOLD_MS) {
+            encoderDominantDir = 0;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+}
 
 // ─── Button state (long press detection) ──────────────────────────────────
 static unsigned long btnDownMs    = 0;
@@ -71,26 +111,29 @@ void setup() {
     // Start PWM update task on core 0
     xTaskCreatePinnedToCore(pwmTask, "pwmTask", 2048, nullptr, 5, nullptr, 0);
 
-    M5Dial.Encoder.readAndReset();
+    M5Dial.Encoder.write(0);
+    encoderPrevRaw = 0;
+    encoderRemainder = 0;
+    encoderDominantDir = 0;
+    encoderLastMoveMs = 0;
+    pendingEncoderSteps = 0;
+
+    xTaskCreatePinnedToCore(encoderTask, "encoderTask", 2048, nullptr, 6, nullptr, 0);
 }
 
 // ─── Loop ─────────────────────────────────────────────────────────────────
 void loop() {
     M5Dial.update();
 
-    // Encoder delta
-    encoderAccum += M5Dial.Encoder.readAndReset();
-
     handleButton();
 
-    // The encoder library reports quadrature edges, not user detents.
-    // Convert to whole detent steps before handing values to the UI.
-    float delta = 0.0f;
-    if (labs(encoderAccum) >= ENCODER_COUNTS_PER_STEP) {
-        long steps = encoderAccum / ENCODER_COUNTS_PER_STEP;
-        delta = (float)steps;
-        encoderAccum -= steps * ENCODER_COUNTS_PER_STEP;
-    }
+    long steps = 0;
+    portENTER_CRITICAL(&encoderMux);
+    steps = pendingEncoderSteps;
+    pendingEncoderSteps = 0;
+    portEXIT_CRITICAL(&encoderMux);
+
+    float delta = (float)steps;
 
     ui.update(delta, shortClicked, longClicked);
     ui.render();
