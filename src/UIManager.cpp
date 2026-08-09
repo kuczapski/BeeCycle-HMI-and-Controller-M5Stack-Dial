@@ -38,14 +38,21 @@ void UIManager::update(float encoderDelta, bool shortClick, bool longClick) {
         // Navigate between pages with encoder
         if (encoderDelta != 0.0f) {
             int prev = activePage;
-            activePage += (encoderDelta > 0.0f) ? 1 : -1;
-            if (activePage < 0)           activePage = PAGE_COUNT - 1;
-            if (activePage >= PAGE_COUNT) activePage = 0;
+            int nextPage = activePage + ((encoderDelta > 0.0f) ? 1 : -1);
+            if (nextPage < 0) {
+                nextPage = 0;
+            }
+            if (nextPage >= PAGE_COUNT) {
+                nextPage = PAGE_COUNT - 1;
+            }
+            activePage = nextPage;
 
-            // Trigger slide
-            slideFromPage = prev;
-            slideProgress = 0.0f;
-            slideLeft     = (encoderDelta > 0.0f);
+            // Trigger slide only when the page actually changes.
+            if (activePage != prev) {
+                slideFromPage = prev;
+                slideProgress = 0.0f;
+                slideLeft     = (encoderDelta > 0.0f);
+            }
         }
 
         // Short click enters the page
@@ -79,18 +86,7 @@ void UIManager::render() {
     } else {
         // Normal render
         if (!pageActive) {
-            // Show page name selector
-            int cx = DISP_CX, cy = DISP_CY;
-            canvas->setTextColor(COL_DIM, COL_BG);
-            canvas->drawCentreString(PAGE_NAMES[activePage], cx, cy - 14, 4);
-            canvas->setTextColor(COL_DIM, COL_BG);
-            canvas->drawCentreString("CLICK TO ENTER", cx, cy + 30, 1);
-
-            // Dot indicators
-            for (int i = 0; i < PAGE_COUNT; i++) {
-                uint16_t c = (i == activePage) ? COL_ACCENT : COL_DIM;
-                canvas->fillCircle(cx - (PAGE_COUNT - 1) * 12 + i * 24, cy + 55, 5, c);
-            }
+            drawPageSelector(activePage, 0);
         } else {
             pages[activePage]->draw(canvas, 0);
         }
@@ -102,23 +98,37 @@ void UIManager::render() {
     canvas->pushSprite(0, 0);
 }
 
+void UIManager::drawPageSelector(int pageIndex, int xOffset) {
+    int cx = DISP_CX + xOffset;
+    int cy = DISP_CY;
+
+    canvas->setTextColor(COL_DIM, COL_BG);
+    canvas->drawCentreString(PAGE_NAMES[pageIndex], cx, cy - 14, 4);
+    canvas->setTextColor(COL_DIM, COL_BG);
+    canvas->drawCentreString("CLICK TO ENTER", cx, cy + 30, 1);
+
+    for (int i = 0; i < PAGE_COUNT; i++) {
+        uint16_t c = (i == pageIndex) ? COL_ACCENT : COL_DIM;
+        canvas->fillCircle(cx - (PAGE_COUNT - 1) * 12 + i * 24, cy + 55, 5, c);
+    }
+}
+
 void UIManager::renderSlide() {
-    // Vertical sliding transition using y-offset (clean single-buffer approach).
-    // slideLeft=true: new page enters from the bottom, old page exits to top.
+    // Page changes happen only in selector mode, so slide the selector itself.
     canvas->fillScreen(COL_BG);
 
-    int vNewOffset = (slideLeft) ?  (int)((1.0f - slideProgress) * DISP_H)
-                                 : -(int)((1.0f - slideProgress) * DISP_H);
-    int vOldOffset = -vNewOffset;
+    int direction = slideLeft ? 1 : -1;
+    int hNewOffset = direction * (int)((1.0f - slideProgress) * DISP_W);
+    int hOldOffset = -direction * (int)(slideProgress * DISP_W);
 
-    pages[slideFromPage]->draw(canvas, vOldOffset);
-    pages[activePage]->draw(canvas, vNewOffset);
+    drawPageSelector(slideFromPage, hOldOffset);
+    drawPageSelector(activePage, hNewOffset);
 }
 
 void UIManager::drawHalfRing() {
     // Draw background track arc (upper half)
     canvas->drawArc(DISP_CX, DISP_CY, RING_RADIUS, RING_RADIUS - ARC_WIDTH,
-                    0, 180, COL_ARC_TRACK);
+                    180, 360, COL_ARC_TRACK);
 
     // Draw applied duty cycle arc (orange)
     float applied = pwmCore->currentAppliedDutyCycle / (cfgMgr->config.maxDutyCycle > 0.0f ? cfgMgr->config.maxDutyCycle : 1.0f);
@@ -142,6 +152,6 @@ void UIManager::drawHalfRing() {
     float targetAngle = speedToAngle(target);
     float rad         = targetAngle * DEG_TO_RAD;
     int   dotX        = DISP_CX + (int)(RING_RADIUS * cos(rad));
-    int   dotY        = DISP_CY - (int)(RING_RADIUS * sin(rad));
+    int   dotY        = DISP_CY + (int)(RING_RADIUS * sin(rad));
     canvas->fillCircle(dotX, dotY, TARGET_DOT_R, COL_TARGET_DOT);
 }

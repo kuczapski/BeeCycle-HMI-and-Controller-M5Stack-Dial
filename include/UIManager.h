@@ -35,5 +35,6 @@ private:
     static constexpr float SLIDE_SPEED = 0.15f; // per render call
 
     void drawHalfRing();
+    void drawPageSelector(int pageIndex, int xOffset);
     void renderSlide();
 };

@@ -18,8 +18,8 @@ void pwmTask(void* pv) {
 }
 
 // ─── Encoder state ────────────────────────────────────────────────────────
-static long   encoderPrev = 0;
-static float  encoderAccum = 0.0f;
+static long encoderAccum = 0;
+static constexpr long ENCODER_COUNTS_PER_STEP = 4;
 
 // ─── Button state (long press detection) ──────────────────────────────────
 static unsigned long btnDownMs    = 0;
@@ -30,7 +30,7 @@ static bool          longClicked  = false;
 static constexpr unsigned long LONG_PRESS_MS = 800;
 
 void handleButton() {
-    bool down = (M5.BtnA.isPressed() || M5.Dial.BtnEncoder.isPressed());
+    bool down = M5Dial.BtnA.isPressed();
 
     shortClicked = false;
     longClicked  = false;
@@ -71,7 +71,7 @@ void setup() {
     // Start PWM update task on core 0
     xTaskCreatePinnedToCore(pwmTask, "pwmTask", 2048, nullptr, 5, nullptr, 0);
 
-    encoderPrev = M5Dial.Encoder.read();
+    M5Dial.Encoder.readAndReset();
 }
 
 // ─── Loop ─────────────────────────────────────────────────────────────────
@@ -79,18 +79,17 @@ void loop() {
     M5Dial.update();
 
     // Encoder delta
-    long encNow   = M5Dial.Encoder.read();
-    float encDelta = (float)(encNow - encoderPrev);
-    encoderPrev   = encNow;
-    encoderAccum  += encDelta;
+    encoderAccum += M5Dial.Encoder.readAndReset();
 
     handleButton();
 
-    // Pass input to UI (consume accumulator in integer steps)
+    // The encoder library reports quadrature edges, not user detents.
+    // Convert to whole detent steps before handing values to the UI.
     float delta = 0.0f;
-    if (fabsf(encoderAccum) >= 1.0f) {
-        delta        = (encoderAccum > 0.0f) ? 1.0f : -1.0f;
-        encoderAccum -= delta;
+    if (labs(encoderAccum) >= ENCODER_COUNTS_PER_STEP) {
+        long steps = encoderAccum / ENCODER_COUNTS_PER_STEP;
+        delta = (float)steps;
+        encoderAccum -= steps * ENCODER_COUNTS_PER_STEP;
     }
 
     ui.update(delta, shortClicked, longClicked);

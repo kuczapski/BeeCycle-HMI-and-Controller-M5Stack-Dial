@@ -10,10 +10,11 @@ static constexpr int   RING_RADIUS     = 108;
 static constexpr int   ARC_WIDTH       = 4;
 static constexpr int   TARGET_DOT_R    = 3;
 
-static constexpr float ARC_ZERO_DEG    =  90.0f;
+static constexpr float ARC_ZERO_DEG    = 270.0f;
 
 inline float speedToAngle(float pct) {
-    return ARC_ZERO_DEG - pct * 90.0f;
+    pct = constrain(pct, -1.0f, 1.0f);
+    return ARC_ZERO_DEG + pct * 90.0f;
 }
 
 // ─── Color palette ─────────────────────────────────────────────────────────

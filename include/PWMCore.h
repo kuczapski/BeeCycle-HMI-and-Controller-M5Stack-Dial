@@ -18,8 +18,10 @@ public:
     void begin(const AppConfig* cfg) {
         config = cfg;
 
-        ledcAttach(PWM_PIN_1, PWM_FREQ_HZ, PWM_RESOLUTION);
-        ledcAttach(PWM_PIN_2, PWM_FREQ_HZ, PWM_RESOLUTION);
+        ledcSetup(PWM_CHANNEL_1, PWM_FREQ_HZ, PWM_RESOLUTION);
+        ledcSetup(PWM_CHANNEL_2, PWM_FREQ_HZ, PWM_RESOLUTION);
+        ledcAttachPin(PWM_PIN_1, PWM_CHANNEL_1);
+        ledcAttachPin(PWM_PIN_2, PWM_CHANNEL_2);
 
         applyPWM(0.0f);
         lastUpdateUs = micros();
@@ -36,6 +38,7 @@ public:
         lastUpdateUs = nowUs;
 
         if (dt <= 0.0f || dt > 1.0f) return; // sanity
+        if (config == nullptr || config->zeroToMaxSpinupTime <= 0.0f || config->maxDutyCycle <= 0.0f) return;
 
         // Read volatile state into locals for calculation
         float current = currentAppliedDutyCycle;
@@ -45,51 +48,36 @@ public:
 
         if (fabsf(targetDutyCycle - current) < 1e-5f) return;
 
-        // Kinetic energy is proportional to omega^2 (speed^2).
-        // To make kinetic energy change constant, we move in sqrt-space.
-        // Map current and target duty cycle magnitudes to "energy space" (sign kept),
-        // step linearly in energy space, then map back.
+        // Kinetic energy is proportional to omega^2. We ramp in normalized
+        // energy space so 0 -> maxDutyCycle takes exactly zeroToMaxSpinupTime.
+        float maxDuty = config->maxDutyCycle;
+        float curSign = (current < 0.0f) ? -1.0f : 1.0f;
+        float tgtSign = (targetDutyCycle < 0.0f) ? -1.0f : 1.0f;
 
-        float sign    = (targetDutyCycle >= 0.0f) ? 1.0f : -1.0f;
-        float curAbs  = fabsf(current);
-        float tgtAbs  = fabsf(targetDutyCycle);
+        float effectiveTargetDuty = targetDutyCycle;
+        if (fabsf(current) > 1e-5f && fabsf(targetDutyCycle) > 1e-5f && curSign != tgtSign) {
+            effectiveTargetDuty = 0.0f;
+            tgtSign = curSign;
+        }
 
-        // maxStep in duty-cycle units at the max rate (0→1 in spinupTime seconds)
-        float maxStep = dt / config->zeroToMaxSpinupTime;
+        float curNorm = constrain(fabsf(current) / maxDuty, 0.0f, 1.0f);
+        float tgtNorm = constrain(fabsf(effectiveTargetDuty) / maxDuty, 0.0f, 1.0f);
 
-        // Convert magnitudes to energy space (square of magnitude)
-        float curEnergy = curAbs * curAbs;
-        float tgtEnergy = tgtAbs * tgtAbs;
+        float curEnergy = curNorm * curNorm;
+        float tgtEnergy = tgtNorm * tgtNorm;
+        float maxEnergyStep = dt / config->zeroToMaxSpinupTime;
 
-        // maxStep in energy space: d(v^2)/dt = 2*v * dv/dt
-        // At v=1 (max), maxEnergyStep = 2 * 1 * maxStep = 2*maxStep
-        float maxEnergyStep = 2.0f * maxStep;
-
-        float newEnergy;
+        float newEnergy = curEnergy;
         if (curEnergy < tgtEnergy) {
-            newEnergy = curEnergy + maxEnergyStep;
+            newEnergy += maxEnergyStep;
             if (newEnergy > tgtEnergy) newEnergy = tgtEnergy;
         } else {
-            // Decelerating — we cross zero if directions differ
-            newEnergy = curEnergy - maxEnergyStep;
-            if (newEnergy < 0.0f) newEnergy = 0.0f;
+            newEnergy -= maxEnergyStep;
             if (newEnergy < tgtEnergy) newEnergy = tgtEnergy;
         }
 
-        float newAbs = sqrtf(newEnergy);
-
-        // Handle direction change: must pass through 0 first
-        float curSign = (current >= 0.0f) ? 1.0f : -1.0f;
-        float newSign;
-        if (newAbs < 1e-5f) {
-            // At zero – now we can start in the target direction
-            newSign = sign;
-        } else if (curSign != sign) {
-            // Still decelerating toward zero, keep original sign
-            newSign = curSign;
-        } else {
-            newSign = sign;
-        }
+        float newAbs = sqrtf(newEnergy) * maxDuty;
+        float newSign = (newAbs < 1e-5f) ? 0.0f : tgtSign;
 
         currentAppliedDutyCycle = newSign * newAbs;
         applyPWM(currentAppliedDutyCycle);
@@ -100,6 +88,9 @@ public:
     }
 
 private:
+    static constexpr uint8_t PWM_CHANNEL_1 = 0;
+    static constexpr uint8_t PWM_CHANNEL_2 = 1;
+
     const AppConfig* config = nullptr;
     unsigned long    lastUpdateUs = 0;
 
@@ -113,7 +104,7 @@ private:
         } else if (duty < 0.0f) {
             val2 = (int)(-duty * maxVal + 0.5f);
         }
-        ledcWrite(PWM_PIN_1, val1);
-        ledcWrite(PWM_PIN_2, val2);
+        ledcWrite(PWM_CHANNEL_1, val1);
+        ledcWrite(PWM_CHANNEL_2, val2);
     }
 };

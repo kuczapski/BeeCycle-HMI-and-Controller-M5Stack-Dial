@@ -18,6 +18,19 @@ static const ProgramStep PROGRAM_STEPS[] = {
 };
 static constexpr int PROGRAM_STEP_COUNT = 4;
 
+inline float programStepRampDuration(const AppConfig& cfg, float speedFraction) {
+    float clampedFraction = constrain(speedFraction, 0.0f, 1.0f);
+    return cfg.zeroToMaxSpinupTime * clampedFraction * clampedFraction;
+}
+
+inline float minimumProgramDuration(const AppConfig& cfg) {
+    float total = 0.0f;
+    for (int i = 0; i < PROGRAM_STEP_COUNT; ++i) {
+        total += 2.0f * programStepRampDuration(cfg, PROGRAM_STEPS[i].speedFraction);
+    }
+    return total;
+}
+
 class PageStandard : public PageBase {
 public:
     void init(PWMCore* pwm, ConfigManager* cfg) {
@@ -61,7 +74,7 @@ public:
 
         if (!running) {
             // Encoder changes program duration
-            float minDur = cfgMgr->config.zeroToMaxSpinupTime * PROGRAM_STEP_COUNT * 2.0f;
+            float minDur = minimumProgramDuration(cfgMgr->config);
             cfgMgr->config.programDuration += encoderDelta * 5.0f;
             if (cfgMgr->config.programDuration < minDur)
                 cfgMgr->config.programDuration = minDur;
@@ -90,7 +103,8 @@ public:
         case PHASE_HOLD:
             holdTimer += dt;
             {
-                float holdDur = stepDur - 2.0f * cfgMgr->config.zeroToMaxSpinupTime;
+                float rampDur = programStepRampDuration(cfgMgr->config, step.speedFraction);
+                float holdDur = stepDur - 2.0f * rampDur;
                 if (holdDur < 0.0f) holdDur = 0.0f;
                 if (holdTimer >= holdDur) {
                     stepPhase = PHASE_SPINDOWN;
