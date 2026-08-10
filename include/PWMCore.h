@@ -18,6 +18,12 @@ public:
     void begin(const AppConfig* cfg) {
         config = cfg;
 
+        // Drive the external PORT.B pins as plain outputs before binding PWM.
+        pinMode(PWM_PIN_1, OUTPUT);
+        pinMode(PWM_PIN_2, OUTPUT);
+        digitalWrite(PWM_PIN_1, LOW);
+        digitalWrite(PWM_PIN_2, LOW);
+
         ledcSetup(PWM_CHANNEL_1, PWM_FREQ_HZ, PWM_RESOLUTION);
         ledcSetup(PWM_CHANNEL_2, PWM_FREQ_HZ, PWM_RESOLUTION);
         ledcAttachPin(PWM_PIN_1, PWM_CHANNEL_1);

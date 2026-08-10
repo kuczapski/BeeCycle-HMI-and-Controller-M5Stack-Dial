@@ -2,9 +2,10 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
-// PWM hardware pins
-static constexpr int PWM_PIN_1 = 1;   // positive rotation
-static constexpr int PWM_PIN_2 = 2;   // negative rotation
+// PWM hardware pins on M5Dial PORT.B
+// G1 = GPIO1, G2 = GPIO2 according to the M5Dial pin map.
+static constexpr int PWM_PIN_1 = 1;   // G1, positive rotation
+static constexpr int PWM_PIN_2 = 2;   // G2, negative rotation
 static constexpr int PWM_FREQ_HZ = 20000;
 static constexpr int PWM_RESOLUTION = 10; // 10-bit: 0-1023
 
