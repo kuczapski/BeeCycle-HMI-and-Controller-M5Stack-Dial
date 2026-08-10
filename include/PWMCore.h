@@ -24,6 +24,10 @@ public:
         digitalWrite(PWM_PIN_1, LOW);
         digitalWrite(PWM_PIN_2, LOW);
 
+        pinMode(ACTIVE_BRAKE_PIN_1, OUTPUT);
+        pinMode(ACTIVE_BRAKE_PIN_2, OUTPUT);
+        writeActiveBrakeOutputs();
+
         ledcSetup(PWM_CHANNEL_1, PWM_FREQ_HZ, PWM_RESOLUTION);
         ledcSetup(PWM_CHANNEL_2, PWM_FREQ_HZ, PWM_RESOLUTION);
         ledcAttachPin(PWM_PIN_1, PWM_CHANNEL_1);
@@ -40,6 +44,8 @@ public:
     // Call periodically (e.g. every 10 ms) from the PWM task/loop.
     void update() {
         unsigned long nowUs = micros();
+        writeActiveBrakeOutputs();
+
         float dt = (float)(nowUs - lastUpdateUs) * 1e-6f;
         lastUpdateUs = nowUs;
 
@@ -102,6 +108,12 @@ private:
 
     const AppConfig* config = nullptr;
     unsigned long    lastUpdateUs = 0;
+
+    void writeActiveBrakeOutputs() {
+        bool brakeOn = (config != nullptr) && config->activeBraking;
+        digitalWrite(ACTIVE_BRAKE_PIN_1, brakeOn ? HIGH : LOW);
+        digitalWrite(ACTIVE_BRAKE_PIN_2, brakeOn ? HIGH : LOW);
+    }
 
     void applyPWM(float duty) {
         // duty in [-1, 1]

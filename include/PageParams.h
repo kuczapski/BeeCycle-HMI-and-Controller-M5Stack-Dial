@@ -3,21 +3,29 @@
 #include "Config.h"
 
 // ─── Parameter Editor Page ─────────────────────────────────────────────────
+enum class ParamType {
+    Float,
+    Toggle,
+};
+
 struct ParamDef {
     const char* name;
     const char* unit;
     float       minVal;
     float       maxVal;
     float       step;
-    float AppConfig::* field;
+    ParamType   type;
+    float AppConfig::* floatField;
+    bool AppConfig::*  boolField;
 };
 
 static const ParamDef PARAMS[] = {
-    { "SPINUP TIME",    "s", 1.0f,  30.0f, 0.5f,  &AppConfig::zeroToMaxSpinupTime },
-    { "MAX DUTY CYCLE", "%", 0.1f,   1.0f, 0.01f, &AppConfig::maxDutyCycle        },
-    { "PROG DURATION",  "s", 30.0f, 300.0f, 5.0f, &AppConfig::programDuration     },
+    { "SPINUP TIME",     "s",  1.0f,  30.0f, 0.5f,  ParamType::Float,  &AppConfig::zeroToMaxSpinupTime, nullptr                    },
+    { "MAX DUTY CYCLE",  "%",  0.1f,   1.0f, 0.01f, ParamType::Float,  &AppConfig::maxDutyCycle,        nullptr                    },
+    { "PROG DURATION",   "s", 30.0f, 300.0f, 5.0f,  ParamType::Float,  &AppConfig::programDuration,     nullptr                    },
+    { "ACTIVE BREAKING", "",   0.0f,   1.0f, 1.0f,  ParamType::Toggle, nullptr,                          &AppConfig::activeBraking },
 };
-static constexpr int PARAM_COUNT = 3;
+static constexpr int PARAM_COUNT = 4;
 
 class PageParams : public PageBase {
 public:
@@ -42,10 +50,16 @@ public:
 
         // Encoder changes value of current param
         const ParamDef& p = PARAMS[paramIndex];
-        float& val = editCfg.*(p.field);
-        val += encoderDelta * p.step;
-        if (val < p.minVal) val = p.minVal;
-        if (val > p.maxVal) val = p.maxVal;
+        if (p.type == ParamType::Float) {
+            float& val = editCfg.*(p.floatField);
+            val += encoderDelta * p.step;
+            if (val < p.minVal) val = p.minVal;
+            if (val > p.maxVal) val = p.maxVal;
+        } else if (encoderDelta > 0.0f) {
+            editCfg.*(p.boolField) = true;
+        } else if (encoderDelta < 0.0f) {
+            editCfg.*(p.boolField) = false;
+        }
 
         // Short click advances to next parameter
         if (shortClick) {
@@ -66,28 +80,37 @@ public:
         canvas->drawCentreString(p.name, cx, nameY, 4);
 
         // Value
-        float val = editCfg.*(p.field);
         char valueBuf[24];
         char unitBuf[12];
-        if (p.field == &AppConfig::maxDutyCycle) {
-            snprintf(valueBuf, sizeof(valueBuf), "%d", (int)(val * 100.0f + 0.5f));
-        } else if (p.step < 0.1f) {
-            snprintf(valueBuf, sizeof(valueBuf), "%.2f", val);
+        if (p.type == ParamType::Toggle) {
+            snprintf(valueBuf, sizeof(valueBuf), "%s", (editCfg.*(p.boolField)) ? "ON" : "OFF");
+            unitBuf[0] = '\0';
         } else {
-            snprintf(valueBuf, sizeof(valueBuf), "%.1f", val);
+            float val = editCfg.*(p.floatField);
+            if (p.floatField == &AppConfig::maxDutyCycle) {
+                snprintf(valueBuf, sizeof(valueBuf), "%d", (int)(val * 100.0f + 0.5f));
+            } else if (p.step < 0.1f) {
+                snprintf(valueBuf, sizeof(valueBuf), "%.2f", val);
+            } else {
+                snprintf(valueBuf, sizeof(valueBuf), "%.1f", val);
+            }
+            snprintf(unitBuf, sizeof(unitBuf), "%s", p.unit);
         }
-        snprintf(unitBuf, sizeof(unitBuf), "%s", p.unit);
-
-        int unitGap = uiScale(8);
-        canvas->setTextFont(6);
-        int valueWidth = canvas->textWidth(valueBuf);
-        canvas->setTextFont(4);
-        int unitWidth = canvas->textWidth(unitBuf);
-        int leftX = cx - (valueWidth + unitGap + unitWidth) / 2;
 
         canvas->setTextColor(COL_TEXT, COL_BG);
-        canvas->drawString(valueBuf, leftX, valueY, 6);
-        canvas->drawString(unitBuf, leftX + valueWidth + unitGap, valueY + uiScale(10), 4);
+        if (p.type == ParamType::Toggle) {
+            canvas->drawCentreString(valueBuf, cx, valueY + uiScale(6), 4);
+        } else {
+            int unitGap = uiScale(8);
+            canvas->setTextFont(6);
+            int valueWidth = canvas->textWidth(valueBuf);
+            canvas->setTextFont(4);
+            int unitWidth = canvas->textWidth(unitBuf);
+            int leftX = cx - (valueWidth + unitGap + unitWidth) / 2;
+
+            canvas->drawString(valueBuf, leftX, valueY, 6);
+            canvas->drawString(unitBuf, leftX + valueWidth + unitGap, valueY + uiScale(10), 4);
+        }
 
         // Param index dots
         for (int i = 0; i < PARAM_COUNT; i++) {
