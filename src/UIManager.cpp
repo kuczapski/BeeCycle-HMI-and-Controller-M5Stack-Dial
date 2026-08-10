@@ -6,9 +6,9 @@
 
 // Page name labels shown in the page selector (not entered)
 static const char* PAGE_NAMES[UIManager::PAGE_COUNT] = {
-    "STANDARD",
+    "AUTOMATIC",
     "MANUAL",
-    "PARAMS",
+    "CONFIG",
 };
 
 static PageStandard pageStd;
@@ -87,12 +87,15 @@ void UIManager::render() {
         // Normal render
         if (!pageActive) {
             drawPageSelector(activePage, 0);
+            drawPageDots(activePage);
         } else {
             pages[activePage]->draw(canvas, 0);
         }
     }
 
-    drawHalfRing();
+    if (!(pageActive && activePage == 2)) {
+        drawHalfRing();
+    }
 
     // Push to display
     canvas->pushSprite(0, 0);
@@ -103,13 +106,19 @@ void UIManager::drawPageSelector(int pageIndex, int xOffset) {
     int cy = DISP_CY;
 
     canvas->setTextColor(COL_DIM, COL_BG);
-    canvas->drawCentreString(PAGE_NAMES[pageIndex], cx, cy - 14, 4);
+
+    canvas->drawCentreString(PAGE_NAMES[pageIndex], cx, cy - uiScale(10), 4);
     canvas->setTextColor(COL_DIM, COL_BG);
-    canvas->drawCentreString("CLICK TO ENTER", cx, cy + 30, 1);
+    canvas->drawCentreString("CLICK TO ENTER", cx, cy + uiScale(6), 2);
+}
+
+void UIManager::drawPageDots(int pageIndex) {
+    int cx = DISP_CX;
+    int cy = DISP_CY;
 
     for (int i = 0; i < PAGE_COUNT; i++) {
         uint16_t c = (i == pageIndex) ? COL_ACCENT : COL_DIM;
-        canvas->fillCircle(cx - (PAGE_COUNT - 1) * 12 + i * 24, cy + 55, 5, c);
+        canvas->fillCircle(cx - (PAGE_COUNT - 1) * uiScale(12) + i * uiScale(24), cy + uiScale(64), uiScale(5), c);
     }
 }
 
@@ -123,6 +132,7 @@ void UIManager::renderSlide() {
 
     drawPageSelector(slideFromPage, hOldOffset);
     drawPageSelector(activePage, hNewOffset);
+    drawPageDots(activePage);
 }
 
 void UIManager::drawHalfRing() {
@@ -142,7 +152,7 @@ void UIManager::drawHalfRing() {
 
     // Only draw if there's a non-trivial arc
     if (fabsf(arcB - arcA) > 0.5f) {
-        canvas->drawArc(DISP_CX, DISP_CY, RING_RADIUS, RING_RADIUS - ARC_WIDTH,
+        canvas->fillArc(DISP_CX, DISP_CY, RING_RADIUS, RING_RADIUS - ARC_WIDTH,
                         (int)arcA, (int)arcB, COL_ARC_APPLIED);
     }
 

@@ -51,8 +51,8 @@ public:
         // Kinetic energy is proportional to omega^2. We ramp in normalized
         // energy space so 0 -> maxDutyCycle takes exactly zeroToMaxSpinupTime.
         float maxDuty = config->maxDutyCycle;
-        float curSign = (current < 0.0f) ? -1.0f : 1.0f;
-        float tgtSign = (targetDutyCycle < 0.0f) ? -1.0f : 1.0f;
+        float curSign = (current > 0.0f) ? 1.0f : ((current < 0.0f) ? -1.0f : 0.0f);
+        float tgtSign = (targetDutyCycle > 0.0f) ? 1.0f : ((targetDutyCycle < 0.0f) ? -1.0f : 0.0f);
 
         float effectiveTargetDuty = targetDutyCycle;
         if (fabsf(current) > 1e-5f && fabsf(targetDutyCycle) > 1e-5f && curSign != tgtSign) {
@@ -77,7 +77,10 @@ public:
         }
 
         float newAbs = sqrtf(newEnergy) * maxDuty;
-        float newSign = (newAbs < 1e-5f) ? 0.0f : tgtSign;
+        float newSign = 0.0f;
+        if (newAbs >= 1e-5f) {
+            newSign = (fabsf(effectiveTargetDuty) < 1e-5f) ? curSign : tgtSign;
+        }
 
         currentAppliedDutyCycle = newSign * newAbs;
         applyPWM(currentAppliedDutyCycle);

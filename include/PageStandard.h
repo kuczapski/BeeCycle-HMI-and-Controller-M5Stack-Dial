@@ -132,37 +132,53 @@ public:
     void draw(M5Canvas* canvas, int yOffset) override {
         int cx = DISP_CX, cy = DISP_CY + yOffset;
 
-        // Page label
-        canvas->setTextColor(COL_DIM, COL_BG);
-        canvas->setTextSize(1);
-        canvas->drawCentreString("STANDARD", cx, cy - 60, 2);
+        auto drawLargeValueWithSuffix = [&](const char* valueText, const char* suffixText, int y, uint16_t color) {
+            int suffixGap = uiScale(8);
+            canvas->setTextFont(6);
+            int valueWidth = canvas->textWidth(valueText);
+            canvas->setTextFont(4);
+            int suffixWidth = canvas->textWidth(suffixText);
+            int leftX = cx - (valueWidth + suffixGap + suffixWidth) / 2;
+
+            canvas->setTextColor(color, COL_BG);
+            canvas->drawString(valueText, leftX, y, 6);
+            canvas->drawString(suffixText, leftX + valueWidth + suffixGap, y + uiScale(10), 4);
+        };
+
 
         // Duration display (while stopped)
         if (!running) {
             canvas->setTextColor(COL_TEXT, COL_BG);
-            char buf[32];
-            snprintf(buf, sizeof(buf), "%.0f s", cfgMgr->config.programDuration);
-            canvas->drawCentreString(buf, cx, cy - 10, 4);
+            char valueBuf[24];
+            snprintf(valueBuf, sizeof(valueBuf), "%.0f", cfgMgr->config.programDuration);
+            drawLargeValueWithSuffix(valueBuf, "s", cy - uiScale(14), COL_TEXT);
             canvas->setTextColor(COL_DIM, COL_BG);
-            canvas->drawCentreString("CLICK TO START", cx, cy + 35, 1);
+            canvas->drawCentreString("CLICK TO START", cx, cy + uiScale(44), 2);
         } else {
             // Progress ring
-            int pr = 50;
+            int pr = uiScale(55);
             canvas->drawCircle(cx, cy, pr, COL_ARC_TRACK);
-            int arcEnd = (int)(progress * 360.0f);
-            canvas->drawArc(cx, cy, pr, pr - 6, 270, 270 + arcEnd, COL_GREEN);
+            int arcEnd = (int)(progress * 220.0f);
+            int arcStart = 160;
+            canvas->fillArc(cx, cy, pr, pr-uiScale(10), arcStart, arcStart + arcEnd, COL_DARK_GREEN);
 
             // Percentage
+            char valueBuf[16];
             char buf[16];
-            snprintf(buf, sizeof(buf), "%d%%", (int)(progress * 100.0f));
-            canvas->setTextColor(COL_TEXT, COL_BG);
-            canvas->drawCentreString(buf, cx, cy - 14, 4);
+            snprintf(valueBuf, sizeof(valueBuf), "%d", (int)(progress * 100.0f));
+            drawLargeValueWithSuffix(valueBuf, "%", cy - uiScale(16), COL_TEXT);
 
             // Step indicator
             snprintf(buf, sizeof(buf), "STEP %d/%d", stepIndex + 1, PROGRAM_STEP_COUNT);
-            canvas->setTextColor(COL_DIM, COL_BG);
-            canvas->drawCentreString(buf, cx, cy + 35, 1);
+            canvas->setTextColor(COL_DIM);
+            canvas->drawCentreString(buf, cx, cy + uiScale(44), 2);
         }
+
+         // Page label
+        canvas->setTextColor(COL_DIM);
+        canvas->setTextSize(1);
+        canvas->drawCentreString("AUTOMATIC", cx, cy + 40, 4);
+
     }
 
 private:

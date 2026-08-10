@@ -9,6 +9,13 @@ static constexpr int   DISP_CY         = DISP_H / 2;
 static constexpr int   RING_RADIUS     = 108;
 static constexpr int   ARC_WIDTH       = 4;
 static constexpr int   TARGET_DOT_R    = 3;
+static constexpr float UI_SCALE        = 1.5f;
+
+inline int uiScale(int value) {
+    return (int)(value * UI_SCALE + 0.5f);
+}
+
+static constexpr int   PAGE_TITLE_Y_OFFSET = -54;
 
 static constexpr float ARC_ZERO_DEG    = 270.0f;
 
@@ -26,4 +33,5 @@ static constexpr uint16_t COL_TEXT         = TFT_WHITE;
 static constexpr uint16_t COL_ACCENT       = TFT_ORANGE;
 static constexpr uint16_t COL_DIM          = 0x7BEF;
 static constexpr uint16_t COL_GREEN        = TFT_GREEN;
+static constexpr uint16_t COL_DARK_GREEN   = 0x03E0;
 static constexpr uint16_t COL_RED          = 0xF800;

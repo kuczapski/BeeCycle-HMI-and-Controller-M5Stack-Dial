@@ -36,5 +36,6 @@ private:
 
     void drawHalfRing();
     void drawPageSelector(int pageIndex, int xOffset);
+    void drawPageDots(int pageIndex);
     void renderSlide();
 };

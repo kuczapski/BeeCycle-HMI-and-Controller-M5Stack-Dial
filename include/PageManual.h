@@ -48,21 +48,20 @@ public:
         int cx = DISP_CX, cy = DISP_CY + yOffset;
 
         canvas->setTextColor(COL_DIM, COL_BG);
-        canvas->drawCentreString("MANUAL", cx, cy - 60, 2);
+        canvas->drawCentreString("MANUAL", cx, cy + 40, 4);
 
         // Speed dial arc
-        int r = 50;
-        canvas->drawCircle(cx, cy, r, COL_ARC_TRACK);
+        int r = uiScale(50);
 
         float absSpd = fabsf(selectedSpeed);
-        int   arcSpan = (int)(absSpd * 180.0f);
+        int   arcSpan = (int)(absSpd * 90.0f);
         if (arcSpan > 0) {
             uint16_t col = (selectedSpeed >= 0.0f) ? COL_ACCENT : COL_RED;
             // From top (270°) extend in direction
             if (selectedSpeed >= 0.0f) {
-                canvas->drawArc(cx, cy, r, r - 6, 270, 270 + arcSpan, col);
+                canvas->fillArc(cx, cy, r, 0, 270, 270 + arcSpan, col);
             } else {
-                canvas->drawArc(cx, cy, r, r - 6, 270 - arcSpan, 270, col);
+                canvas->fillArc(cx, cy, r, 0, 270 - arcSpan, 270, col);
             }
         }
 
@@ -70,12 +69,12 @@ public:
         char buf[16];
         int  pct = (int)(selectedSpeed * 100.0f);
         snprintf(buf, sizeof(buf), "%+d%%", pct);
-        canvas->setTextColor(COL_TEXT, COL_BG);
-        canvas->drawCentreString(buf, cx, cy - 14, 4);
+        canvas->setTextColor(COL_TEXT);
+        canvas->drawCentreString(buf, cx, cy - uiScale(10), 6);
 
         // State label
         canvas->setTextColor(motorRunning ? COL_GREEN : COL_DIM, COL_BG);
-        canvas->drawCentreString(motorRunning ? "RUNNING" : "CLICK TO RUN", cx, cy + 35, 1);
+        canvas->drawCentreString(motorRunning ? "RUNNING" : "CLICK TO RUN", cx, cy + uiScale(50), 2);
     }
 
 private:
